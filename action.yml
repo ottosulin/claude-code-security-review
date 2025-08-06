@@ -23,13 +23,52 @@ inputs:
     required: false
     default: '20'
   
+  # Provider Configuration
+  llm-provider:
+    description: 'LLM provider to use (anthropic, vertex, bedrock). Defaults to anthropic for backward compatibility.'
+    required: false
+    default: 'anthropic'
+  
+  # Anthropic Configuration (backward compatibility)
   claude-api-key:
-    description: 'Anthropic Claude API key for security analysis'
-    required: true
+    description: 'Anthropic Claude API key for security analysis (required when using anthropic provider)'
+    required: false
     default: ''
 
   claude-model:
     description: 'Claude model to use for security analysis (e.g., claude-3-sonnet-20240229)'
+    required: false
+    default: ''
+
+  # Google Cloud Vertex AI Configuration
+  google-cloud-project:
+    description: 'Google Cloud project ID (required when using vertex provider)'
+    required: false
+    default: ''
+  
+  google-cloud-region:
+    description: 'Google Cloud region for Vertex AI (default: us-central1)'
+    required: false
+    default: 'us-central1'
+  
+  google-cloud-service-account-key:
+    description: 'Base64-encoded Google Cloud service account JSON key (optional, can use workload identity)'
+    required: false
+    default: ''
+
+  # AWS Bedrock Configuration
+  aws-region:
+    description: 'AWS region for Bedrock (default: us-east-1)'
+    required: false
+    default: 'us-east-1'
+  
+  aws-access-key-id:
+    description: 'AWS access key ID (optional, can use IAM roles)'
+    required: false
+    default: ''
+  
+  aws-secret-access-key:
+    description: 'AWS secret access key (optional, can use IAM roles)'
     required: false
     default: ''
 
@@ -150,12 +189,79 @@ runs:
       with:
         node-version: '18'
     
-    - name: Install dependencies
+    - name: Configure authentication and install dependencies
       shell: bash
       run: |
-        echo "::group::Install Deps"
+        echo "::group::Configure Authentication"
+        
+        # Validate provider
+        PROVIDER="${{ inputs.llm-provider }}"
+        if [[ ! "$PROVIDER" =~ ^(anthropic|vertex|bedrock)$ ]]; then
+          echo "::error::Invalid llm-provider '$PROVIDER'. Must be one of: anthropic, vertex, bedrock"
+          exit 1
+        fi
+        
+        echo "Using LLM provider: $PROVIDER"
+        
+        # Configure GCP authentication if using Vertex AI
+        if [ "$PROVIDER" == "vertex" ]; then
+          if [ -z "${{ inputs.google-cloud-project }}" ]; then
+            echo "::error::google-cloud-project is required when using vertex provider"
+            exit 1
+          fi
+          
+          echo "Configuring Google Cloud authentication..."
+          
+          # Set up service account if provided
+          if [ -n "${{ inputs.google-cloud-service-account-key }}" ]; then
+            echo "Setting up service account from provided key..."
+            echo "${{ inputs.google-cloud-service-account-key }}" | base64 -d > /tmp/gcp-key.json
+            export GOOGLE_APPLICATION_CREDENTIALS="/tmp/gcp-key.json"
+            echo "GOOGLE_APPLICATION_CREDENTIALS=/tmp/gcp-key.json" >> $GITHUB_ENV
+          else
+            echo "Using default credentials (workload identity or gcloud auth)"
+          fi
+          
+          echo "GOOGLE_CLOUD_PROJECT=${{ inputs.google-cloud-project }}" >> $GITHUB_ENV
+          echo "GOOGLE_CLOUD_REGION=${{ inputs.google-cloud-region }}" >> $GITHUB_ENV
+        fi
+        
+        # Configure AWS authentication if using Bedrock
+        if [ "$PROVIDER" == "bedrock" ]; then
+          echo "Configuring AWS authentication..."
+          
+          if [ -n "${{ inputs.aws-access-key-id }}" ] && [ -n "${{ inputs.aws-secret-access-key }}" ]; then
+            echo "Setting up AWS credentials from inputs..."
+            echo "AWS_ACCESS_KEY_ID=${{ inputs.aws-access-key-id }}" >> $GITHUB_ENV
+            echo "AWS_SECRET_ACCESS_KEY=${{ inputs.aws-secret-access-key }}" >> $GITHUB_ENV
+          else
+            echo "Using default AWS credentials (IAM roles or environment)"
+          fi
+          
+          echo "AWS_REGION=${{ inputs.aws-region }}" >> $GITHUB_ENV
+        fi
+        
+        # Configure Anthropic authentication
+        if [ "$PROVIDER" == "anthropic" ]; then
+          if [ -z "${{ inputs.claude-api-key }}" ]; then
+            echo "::error::claude-api-key is required when using anthropic provider"
+            exit 1
+          fi
+          echo "ANTHROPIC_API_KEY=${{ inputs.claude-api-key }}" >> $GITHUB_ENV
+        fi
+        
+        # Set provider environment variable
+        echo "LLM_PROVIDER=$PROVIDER" >> $GITHUB_ENV
+        
+        echo "::endgroup::"
+        
+        echo "::group::Install Dependencies"
         if [ "${{ steps.claudecode-check.outputs.enable_claudecode }}" == "true" ]; then
+          # Install provider-specific packages
+          echo "Installing Python dependencies for provider: $PROVIDER"
           pip install -r ${{ github.action_path }}/claudecode/requirements.txt
+          
+          # Install Claude CLI
           npm install -g @anthropic-ai/claude-code
         fi
         sudo apt-get update && sudo apt-get install -y jq
@@ -169,12 +275,23 @@ runs:
         GITHUB_TOKEN: ${{ github.token }}
         GITHUB_REPOSITORY: ${{ github.repository }}
         PR_NUMBER: ${{ github.event.pull_request.number }}
-        ANTHROPIC_API_KEY: ${{ inputs.claude-api-key }}
         ENABLE_CLAUDE_FILTERING: 'true' 
         EXCLUDE_DIRECTORIES: ${{ inputs.exclude-directories }}
         FALSE_POSITIVE_FILTERING_INSTRUCTIONS: ${{ inputs.false-positive-filtering-instructions }}
         CUSTOM_SECURITY_SCAN_INSTRUCTIONS: ${{ inputs.custom-security-scan-instructions }}
         CLAUDE_MODEL: ${{ inputs.claude-model }}
+        # Multi-provider configuration (set by authentication step)
+        LLM_PROVIDER: ${{ env.LLM_PROVIDER }}
+        # Anthropic
+        ANTHROPIC_API_KEY: ${{ env.ANTHROPIC_API_KEY }}
+        # Google Cloud Vertex AI
+        GOOGLE_CLOUD_PROJECT: ${{ env.GOOGLE_CLOUD_PROJECT }}
+        GOOGLE_CLOUD_REGION: ${{ env.GOOGLE_CLOUD_REGION }}
+        GOOGLE_APPLICATION_CREDENTIALS: ${{ env.GOOGLE_APPLICATION_CREDENTIALS }}
+        # AWS Bedrock
+        AWS_REGION: ${{ env.AWS_REGION }}
+        AWS_ACCESS_KEY_ID: ${{ env.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ env.AWS_SECRET_ACCESS_KEY }}
       run: |
         echo "Running ClaudeCode AI security analysis..."
         echo "----------------------------------------"

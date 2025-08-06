@@ -1,0 +1,55 @@
+# Example GitHub Actions workflow using Anthropic API
+# This is the simplest setup with direct API access
+
+name: Security Review (Anthropic API)
+
+permissions:
+  pull-requests: write  # Needed for leaving PR comments
+  contents: read
+
+on:
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  security-review:
+    name: AI Security Review
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 2  # Needed for PR diff analysis
+      
+      - name: Run Claude Code Security Review
+        uses: anthropics/claude-code-security-review@main
+        with:
+          # Provider selection (optional - defaults to anthropic)
+          llm-provider: anthropic
+          
+          # Anthropic API configuration
+          claude-api-key: ${{ secrets.CLAUDE_API_KEY }}
+          claude-model: claude-opus-4-20250514  # Optional - uses latest by default
+          
+          # General configuration
+          comment-pr: true
+          upload-results: true
+          claudecode-timeout: 20  # minutes
+          
+          # Optional: Custom filtering and scanning
+          # false-positive-filtering-instructions: .github/custom-filtering.txt
+          # custom-security-scan-instructions: .github/custom-security-categories.txt
+          
+          # Optional: Directory exclusions
+          # exclude-directories: node_modules,vendor,build
+
+# Required GitHub Secrets:
+# CLAUDE_API_KEY - Your Anthropic API key
+#
+# To get an API key:
+# 1. Go to https://console.anthropic.com/
+# 2. Create an account or sign in
+# 3. Generate an API key
+# 4. Add it to your repository secrets as CLAUDE_API_KEY

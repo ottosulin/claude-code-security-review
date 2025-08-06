@@ -1,0 +1,65 @@
+# Example GitHub Actions workflow using Google Cloud Vertex AI
+# Best for organizations already using Google Cloud
+
+name: Security Review (Vertex AI)
+
+permissions:
+  pull-requests: write  # Needed for leaving PR comments
+  contents: read
+
+on:
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  security-review:
+    name: AI Security Review
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 2  # Needed for PR diff analysis
+      
+      - name: Run Claude Code Security Review
+        uses: anthropics/claude-code-security-review@main
+        with:
+          # Provider selection
+          llm-provider: vertex
+          
+          # Google Cloud Vertex AI configuration
+          google-cloud-project: ${{ secrets.GOOGLE_CLOUD_PROJECT }}
+          google-cloud-region: us-central1  # Optional - defaults to us-central1
+          google-cloud-service-account-key: ${{ secrets.GOOGLE_CLOUD_SERVICE_ACCOUNT_KEY }}
+          
+          # Model configuration
+          claude-model: claude-opus-4-20250514  # Optional - uses latest by default
+          
+          # General configuration
+          comment-pr: true
+          upload-results: true
+          claudecode-timeout: 20  # minutes
+          
+          # Optional: Custom filtering and scanning
+          # false-positive-filtering-instructions: .github/custom-filtering.txt
+          # custom-security-scan-instructions: .github/custom-security-categories.txt
+          
+          # Optional: Directory exclusions
+          # exclude-directories: node_modules,vendor,build
+
+# Required GitHub Secrets:
+# GOOGLE_CLOUD_PROJECT - Your GCP project ID
+# GOOGLE_CLOUD_SERVICE_ACCOUNT_KEY - Base64-encoded service account JSON key
+#
+# Setup Instructions:
+# 1. Enable Vertex AI API in your GCP project
+# 2. Create a service account with Vertex AI User role
+# 3. Download the service account JSON key
+# 4. Base64 encode the key: base64 -i key.json
+# 5. Add the encoded key to GitHub Secrets as GOOGLE_CLOUD_SERVICE_ACCOUNT_KEY
+# 6. Add your project ID to GitHub Secrets as GOOGLE_CLOUD_PROJECT
+#
+# Alternative: Use Workload Identity Federation (recommended for production)
+# See: https://cloud.google.com/iam/docs/workload-identity-federation

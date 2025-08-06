@@ -1,0 +1,79 @@
+# Example GitHub Actions workflow using AWS Bedrock
+# Best for organizations already using AWS
+
+name: Security Review (AWS Bedrock)
+
+permissions:
+  pull-requests: write  # Needed for leaving PR comments
+  contents: read
+
+on:
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  security-review:
+    name: AI Security Review
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 2  # Needed for PR diff analysis
+      
+      - name: Run Claude Code Security Review
+        uses: anthropics/claude-code-security-review@main
+        with:
+          # Provider selection
+          llm-provider: bedrock
+          
+          # AWS Bedrock configuration
+          aws-region: us-east-1  # Optional - defaults to us-east-1
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          
+          # Model configuration
+          claude-model: claude-opus-4-20250514  # Optional - uses latest by default
+          
+          # General configuration
+          comment-pr: true
+          upload-results: true
+          claudecode-timeout: 20  # minutes
+          
+          # Optional: Custom filtering and scanning
+          # false-positive-filtering-instructions: .github/custom-filtering.txt
+          # custom-security-scan-instructions: .github/custom-security-categories.txt
+          
+          # Optional: Directory exclusions
+          # exclude-directories: node_modules,vendor,build
+
+# Required GitHub Secrets:
+# AWS_ACCESS_KEY_ID - Your AWS access key ID
+# AWS_SECRET_ACCESS_KEY - Your AWS secret access key
+#
+# Setup Instructions:
+# 1. Enable Amazon Bedrock in your AWS account
+# 2. Request access to Claude models in Bedrock console
+# 3. Create an IAM user with Bedrock permissions
+# 4. Generate access keys for the IAM user
+# 5. Add the keys to GitHub Secrets
+#
+# Required IAM permissions:
+# {
+#   "Version": "2012-10-17",
+#   "Statement": [
+#     {
+#       "Effect": "Allow",
+#       "Action": [
+#         "bedrock:InvokeModel",
+#         "bedrock:InvokeModelWithResponseStream"
+#       ],
+#       "Resource": "arn:aws:bedrock:*::foundation-model/anthropic.claude*"
+#     }
+#   ]
+# }
+#
+# Alternative: Use IAM roles (recommended for production)
+# See: https://docs.aws.amazon.com/actions/latest/userguide/configure-aws-credentials-action.html

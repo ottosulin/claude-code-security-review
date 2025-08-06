@@ -406,17 +406,23 @@ def initialize_findings_filter(custom_filtering_instructions: Optional[str] = No
         ConfigurationError: If filter initialization fails
     """
     try:
-        # Check if we should use Claude API filtering
+        # Check if we should use LLM API filtering
         use_claude_filtering = os.environ.get('ENABLE_CLAUDE_FILTERING', 'false').lower() == 'true'
-        api_key = os.environ.get('ANTHROPIC_API_KEY')
         
-        if use_claude_filtering and api_key:
-            # Use full filtering with Claude API
+        # Get provider configuration
+        provider = os.environ.get('LLM_PROVIDER', 'anthropic').lower()
+        api_key = os.environ.get('ANTHROPIC_API_KEY')
+        model = os.environ.get('CLAUDE_MODEL')
+        
+        if use_claude_filtering:
+            # Use full filtering with LLM API
             return FindingsFilter(
                 use_hard_exclusions=True,
                 use_claude_filtering=True,
                 api_key=api_key,
-                custom_filtering_instructions=custom_filtering_instructions
+                model=model,
+                custom_filtering_instructions=custom_filtering_instructions,
+                provider=provider
             )
         else:
             # Fallback to filtering with hard rules only
