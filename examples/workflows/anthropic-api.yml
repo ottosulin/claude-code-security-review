@@ -24,7 +24,7 @@ jobs:
           fetch-depth: 2  # Needed for PR diff analysis
       
       - name: Run Claude Code Security Review
-        uses: anthropics/claude-code-security-review@main
+        uses: ottosulin/claude-code-security-review@main
         with:
           # Provider selection (optional - defaults to anthropic)
           llm-provider: anthropic

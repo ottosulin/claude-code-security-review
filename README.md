@@ -36,7 +36,7 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 2
       
-      - uses: anthropics/claude-code-security-review@main
+      - uses: ottosulin/claude-code-security-review@main
         with:
           comment-pr: true
           claude-api-key: ${{ secrets.CLAUDE_API_KEY }}
@@ -63,7 +63,7 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 2
       
-      - uses: anthropics/claude-code-security-review@main
+      - uses: ottosulin/claude-code-security-review@main
         with:
           comment-pr: true
           llm-provider: vertex
@@ -93,7 +93,7 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 2
       
-      - uses: anthropics/claude-code-security-review@main
+      - uses: ottosulin/claude-code-security-review@main
         with:
           comment-pr: true
           llm-provider: bedrock
@@ -268,7 +268,7 @@ By default, Claude Code ships a `/security-review` [slash command](https://docs.
 
 The default `/security-review` command is designed to work well in most cases, but it can also be customized based on your specific security needs. To do so: 
 
-1. Copy the [`security-review.md`](https://github.com/anthropics/claude-code-security-review/blob/main/.claude/commands/security-review.md?plain=1) file from this repository to your project's `.claude/commands/` folder. 
+1. Copy the [`security-review.md`](https://github.com/ottosulin/claude-code-security-review/blob/main/.claude/commands/security-review.md?plain=1) file from this repository to your project's `.claude/commands/` folder. 
 2. Edit `security-review.md` to customize the security analysis. For example, you could add additional organization-specific directions to the false positive filtering instructions. 
 
 ## Custom Scanning Configuration

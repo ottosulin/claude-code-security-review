@@ -18,7 +18,7 @@ The `custom-security-scan-instructions` input allows you to extend the security 
 2. Reference it in your workflow:
 
 ```yaml
-- uses: anthropics/claude-code-security-review@main
+- uses: ottosulin/claude-code-security-review@main
   with:
     custom-security-scan-instructions: .github/custom-security-categories.txt
 ```
