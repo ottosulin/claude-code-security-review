@@ -1,0 +1,108 @@
+# Example GitHub Actions workflow using AWS Bedrock with IAM roles
+# This is the recommended approach for production environments using AWS
+# It eliminates the need to store AWS access keys as secrets
+
+name: Security Review (Bedrock + IAM Roles)
+
+permissions:
+  pull-requests: write  # Needed for leaving PR comments
+  contents: read
+  id-token: write  # Required for OIDC authentication
+
+on:
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  security-review:
+    name: AI Security Review
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 2  # Needed for PR diff analysis
+      
+      # Configure AWS credentials using OIDC
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          role-session-name: GitHubActions-SecurityReview
+          aws-region: us-east-1
+      
+      - name: Run Claude Code Security Review
+        uses: anthropics/claude-code-security-review@main
+        with:
+          # Provider selection
+          llm-provider: bedrock
+          
+          # AWS Bedrock configuration
+          aws-region: us-east-1
+          # No access keys needed - using IAM roles
+          
+          # Model configuration
+          claude-model: claude-opus-4-20250514
+          
+          # General configuration
+          comment-pr: true
+          upload-results: true
+          claudecode-timeout: 30  # Longer timeout for enterprise workloads
+          
+          # Enterprise-specific configuration
+          false-positive-filtering-instructions: .github/enterprise-filtering.txt
+          custom-security-scan-instructions: .github/compliance-security-categories.txt
+          
+          # Exclude common enterprise directories
+          exclude-directories: vendor,node_modules,third_party,build,dist
+
+# Required GitHub Secrets:
+# AWS_ROLE_TO_ASSUME - ARN of the IAM role to assume (e.g., arn:aws:iam::123456789012:role/GitHubActionsRole)
+#
+# Setup Instructions for IAM Roles with OIDC:
+# 1. Create an OIDC Identity Provider in AWS IAM:
+#    - Provider URL: https://token.actions.githubusercontent.com
+#    - Audience: sts.amazonaws.com
+#
+# 2. Create an IAM role with the following trust policy:
+# {
+#   "Version": "2012-10-17",
+#   "Statement": [
+#     {
+#       "Effect": "Allow",
+#       "Principal": {
+#         "Federated": "arn:aws:iam::ACCOUNT_ID:oidc-provider/token.actions.githubusercontent.com"
+#       },
+#       "Action": "sts:AssumeRoleWithWebIdentity",
+#       "Condition": {
+#         "StringEquals": {
+#           "token.actions.githubusercontent.com:aud": "sts.amazonaws.com"
+#         },
+#         "StringLike": {
+#           "token.actions.githubusercontent.com:sub": "repo:OWNER/REPO:*"
+#         }
+#       }
+#     }
+#   ]
+# }
+#
+# 3. Attach the following permissions policy to the role:
+# {
+#   "Version": "2012-10-17",
+#   "Statement": [
+#     {
+#       "Effect": "Allow",
+#       "Action": [
+#         "bedrock:InvokeModel",
+#         "bedrock:InvokeModelWithResponseStream"
+#       ],
+#       "Resource": [
+#         "arn:aws:bedrock:*::foundation-model/anthropic.claude*"
+#       ]
+#     }
+#   ]
+# }
+#
+# Replace ACCOUNT_ID, OWNER, and REPO with your actual values.

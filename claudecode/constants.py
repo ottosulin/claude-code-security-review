@@ -10,6 +10,10 @@ DEFAULT_TIMEOUT_SECONDS = 180  # 3 minutes
 DEFAULT_MAX_RETRIES = 3
 RATE_LIMIT_BACKOFF_MAX = 30  # Maximum backoff time for rate limits
 
+# LLM Provider Configuration
+DEFAULT_LLM_PROVIDER = os.environ.get('LLM_PROVIDER', 'anthropic').lower()
+SUPPORTED_LLM_PROVIDERS = ['anthropic', 'vertex', 'bedrock']
+
 # Token Limits
 PROMPT_TOKEN_LIMIT = 16384  # 16k tokens max for claude-opus-4
 

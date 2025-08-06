@@ -1,0 +1,99 @@
+# Example GitHub Actions workflow using Google Cloud Vertex AI with Workload Identity
+# This is the recommended approach for production environments using GCP
+# It eliminates the need to store service account keys as secrets
+
+name: Security Review (Vertex AI + Workload Identity)
+
+permissions:
+  pull-requests: write  # Needed for leaving PR comments
+  contents: read
+  id-token: write  # Required for workload identity
+
+on:
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  security-review:
+    name: AI Security Review
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 2  # Needed for PR diff analysis
+      
+      # Authenticate to Google Cloud using Workload Identity
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
+          project_id: ${{ secrets.GOOGLE_CLOUD_PROJECT }}
+      
+      - name: Run Claude Code Security Review
+        uses: anthropics/claude-code-security-review@main
+        with:
+          # Provider selection
+          llm-provider: vertex
+          
+          # Google Cloud Vertex AI configuration
+          google-cloud-project: ${{ secrets.GOOGLE_CLOUD_PROJECT }}
+          google-cloud-region: us-central1
+          # No service account key needed - using workload identity
+          
+          # Model configuration
+          claude-model: claude-opus-4-20250514
+          
+          # General configuration
+          comment-pr: true
+          upload-results: true
+          claudecode-timeout: 30  # Longer timeout for enterprise workloads
+          
+          # Enterprise-specific configuration
+          false-positive-filtering-instructions: .github/enterprise-filtering.txt
+          custom-security-scan-instructions: .github/compliance-security-categories.txt
+          
+          # Exclude common enterprise directories
+          exclude-directories: vendor,node_modules,third_party,build,dist
+
+# Required GitHub Secrets:
+# GOOGLE_CLOUD_PROJECT - Your GCP project ID
+# WIF_PROVIDER - Workload Identity Federation provider (format: projects/PROJECT_NUMBER/locations/global/workloadIdentityPools/POOL_ID/providers/PROVIDER_ID)
+# WIF_SERVICE_ACCOUNT - Service account email to impersonate
+#
+# Setup Instructions for Workload Identity:
+# 1. Create a Workload Identity Pool:
+#    gcloud iam workload-identity-pools create "github-actions" \
+#      --project="PROJECT_ID" \
+#      --location="global" \
+#      --display-name="GitHub Actions Pool"
+#
+# 2. Create a Workload Identity Provider:
+#    gcloud iam workload-identity-pools providers create-oidc "github-actions-provider" \
+#      --project="PROJECT_ID" \
+#      --location="global" \
+#      --workload-identity-pool="github-actions" \
+#      --display-name="GitHub Actions Provider" \
+#      --attribute-mapping="google.subject=assertion.sub,attribute.actor=assertion.actor,attribute.repository=assertion.repository" \
+#      --issuer-uri="https://token.actions.githubusercontent.com"
+#
+# 3. Create a service account:
+#    gcloud iam service-accounts create "github-actions-sa" \
+#      --project="PROJECT_ID" \
+#      --display-name="GitHub Actions Service Account"
+#
+# 4. Grant necessary permissions to the service account:
+#    gcloud projects add-iam-policy-binding PROJECT_ID \
+#      --member="serviceAccount:github-actions-sa@PROJECT_ID.iam.gserviceaccount.com" \
+#      --role="roles/aiplatform.user"
+#
+# 5. Allow GitHub to impersonate the service account:
+#    gcloud iam service-accounts add-iam-policy-binding "github-actions-sa@PROJECT_ID.iam.gserviceaccount.com" \
+#      --project="PROJECT_ID" \
+#      --role="roles/iam.workloadIdentityUser" \
+#      --member="principalSet://iam.googleapis.com/projects/PROJECT_NUMBER/locations/global/workloadIdentityPools/github-actions/attribute.repository/OWNER/REPO"
+#
+# Replace PROJECT_ID, PROJECT_NUMBER, OWNER, and REPO with your actual values.

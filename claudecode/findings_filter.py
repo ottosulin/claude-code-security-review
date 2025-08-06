@@ -5,7 +5,8 @@ from typing import Dict, Any, List, Tuple, Optional, Pattern
 import time
 from dataclasses import dataclass, field
 
-from claudecode.claude_api_client import ClaudeAPIClient
+from claudecode.llm_client_factory import LLMClientFactory, LLMConfig
+from claudecode.llm_client_base import CloudProvider
 from claudecode.constants import DEFAULT_CLAUDE_MODEL
 from claudecode.logger import get_logger
 
@@ -162,36 +163,56 @@ class FindingsFilter:
                  use_claude_filtering: bool = True,
                  api_key: Optional[str] = None,
                  model: str = DEFAULT_CLAUDE_MODEL,
-                 custom_filtering_instructions: Optional[str] = None):
+                 custom_filtering_instructions: Optional[str] = None,
+                 provider: Optional[str] = None):
         """Initialize findings filter.
         
         Args:
             use_hard_exclusions: Whether to apply hard exclusion rules
-            use_claude_filtering: Whether to use Claude API for filtering
-            api_key: Anthropic API key for Claude filtering
-            model: Claude model to use for filtering
+            use_claude_filtering: Whether to use LLM API for filtering
+            api_key: API key for LLM filtering (Anthropic only)
+            model: Model to use for filtering
             custom_filtering_instructions: Optional custom filtering instructions
+            provider: LLM provider ('anthropic', 'vertex', 'bedrock'). If None, uses environment or defaults to anthropic
         """
         self.use_hard_exclusions = use_hard_exclusions
         self.use_claude_filtering = use_claude_filtering
         self.custom_filtering_instructions = custom_filtering_instructions
         
-        # Initialize Claude client if filtering is enabled
+        # Initialize LLM client if filtering is enabled
         self.claude_client = None
         if self.use_claude_filtering:
             try:
-                self.claude_client = ClaudeAPIClient(
-                    model=model,
-                    api_key=api_key
-                )
+                if provider:
+                    # Use specified provider
+                    self.claude_client = LLMClientFactory.create_client_from_dict(
+                        provider=provider,
+                        model=model,
+                        api_key=api_key
+                    )
+                else:
+                    # Use environment-based configuration or fall back to Anthropic
+                    try:
+                        self.claude_client = LLMClientFactory.from_environment()
+                    except ValueError:
+                        # Fallback to Anthropic for backward compatibility
+                        logger.warning("Using Anthropic API as fallback due to invalid environment configuration")
+                        self.claude_client = LLMClientFactory.create_client_from_dict(
+                            provider='anthropic',
+                            model=model,
+                            api_key=api_key
+                        )
+                
                 # Validate API access
                 valid, error = self.claude_client.validate_api_access()
                 if not valid:
-                    logger.warning(f"Claude API validation failed: {error}")
+                    logger.warning(f"LLM API validation failed: {error}")
                     self.claude_client = None
                     self.use_claude_filtering = False
+                else:
+                    logger.info(f"LLM client initialized successfully with provider: {self.claude_client.provider_name}")
             except Exception as e:
-                logger.error(f"Failed to initialize Claude client: {str(e)}")
+                logger.error(f"Failed to initialize LLM client: {str(e)}")
                 self.use_claude_filtering = False
     
     def filter_findings(self, 

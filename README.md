@@ -13,6 +13,8 @@ An AI-powered security review GitHub Action using Claude to analyze code changes
 
 ## Quick Start
 
+### Option 1: Anthropic API (Default)
+
 Add this to your repository's `.github/workflows/security.yml`:
 
 ```yaml
@@ -40,20 +42,105 @@ jobs:
           claude-api-key: ${{ secrets.CLAUDE_API_KEY }}
 ```
 
+### Option 2: Google Cloud Vertex AI
+
+```yaml
+name: Security Review
+
+permissions:
+  pull-requests: write
+  contents: read
+
+on:
+  pull_request:
+
+jobs:
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 2
+      
+      - uses: anthropics/claude-code-security-review@main
+        with:
+          comment-pr: true
+          llm-provider: vertex
+          google-cloud-project: ${{ secrets.GOOGLE_CLOUD_PROJECT }}
+          google-cloud-region: us-central1
+          google-cloud-service-account-key: ${{ secrets.GOOGLE_CLOUD_SERVICE_ACCOUNT_KEY }}
+```
+
+### Option 3: AWS Bedrock
+
+```yaml
+name: Security Review
+
+permissions:
+  pull-requests: write
+  contents: read
+
+on:
+  pull_request:
+
+jobs:
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 2
+      
+      - uses: anthropics/claude-code-security-review@main
+        with:
+          comment-pr: true
+          llm-provider: bedrock
+          aws-region: us-east-1
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+```
+
 ## Configuration Options
 
 ### Action Inputs
 
+#### General Configuration
+
 | Input | Description | Default | Required |
 |-------|-------------|---------|----------|
-| `claude-api-key` | Anthropic Claude API key for security analysis | None | Yes |
+| `llm-provider` | LLM provider to use (anthropic, vertex, bedrock) | `anthropic` | No |
 | `comment-pr` | Whether to comment on PRs with findings | `true` | No |
 | `upload-results` | Whether to upload results as artifacts | `true` | No |
 | `exclude-directories` | Comma-separated list of directories to exclude from scanning | None | No |
 | `claudecode-timeout` | Timeout for ClaudeCode analysis in minutes | `20` | No |
-| `run-every-commit` | Run ClaudeCode on every commit (skips cache check). Warning: May increase false positives on PRs with many commits. | `false` | No |
+| `claude-model` | Claude model to use for security analysis | `claude-opus-4-20250514` | No |
+| `run-every-commit` | Run ClaudeCode on every commit (skips cache check) | `false` | No |
 | `false-positive-filtering-instructions` | Path to custom false positive filtering instructions text file | None | No |
-| `custom-security-scan-instructions` | Path to custom security scan instructions text file to append to audit prompt | None | No |
+| `custom-security-scan-instructions` | Path to custom security scan instructions text file | None | No |
+
+#### Anthropic API Configuration
+
+| Input | Description | Default | Required |
+|-------|-------------|---------|----------|
+| `claude-api-key` | Anthropic Claude API key for security analysis | None | Yes (when using anthropic provider) |
+
+#### Google Cloud Vertex AI Configuration
+
+| Input | Description | Default | Required |
+|-------|-------------|---------|----------|
+| `google-cloud-project` | Google Cloud project ID | None | Yes (when using vertex provider) |
+| `google-cloud-region` | Google Cloud region for Vertex AI | `us-central1` | No |
+| `google-cloud-service-account-key` | Base64-encoded service account JSON key | None | No (can use workload identity) |
+
+#### AWS Bedrock Configuration
+
+| Input | Description | Default | Required |
+|-------|-------------|---------|----------|
+| `aws-region` | AWS region for Bedrock | `us-east-1` | No |
+| `aws-access-key-id` | AWS access key ID | None | No (can use IAM roles) |
+| `aws-secret-access-key` | AWS secret access key | None | No (can use IAM roles) |
 
 ### Action Outputs
 
@@ -119,6 +206,47 @@ The false positive filtering can also be tuned as needed for a given project's s
 - **Lower False Positives**: AI-powered analysis reduces noise by understanding when code is actually vulnerable
 - **Detailed Explanations**: Provides clear explanations of why something is a vulnerability and how to fix it
 - **Adaptive Learning**: Can be customized with organization-specific security requirements
+
+## Provider Selection Guide
+
+### When to Use Each Provider
+
+| Provider | Best For | Pros | Cons |
+|----------|----------|------|------|
+| **Anthropic API** | Quick setup, direct access | Simple configuration, latest models first | Requires API key management |
+| **Google Cloud Vertex AI** | GCP environments, enterprise | Enterprise security, compliance, workload identity | More complex setup |
+| **AWS Bedrock** | AWS environments, enterprise | IAM integration, enterprise features | More complex setup |
+
+### Authentication Methods
+
+#### Anthropic API
+```bash
+# Set in GitHub Secrets
+CLAUDE_API_KEY=your-anthropic-api-key
+```
+
+#### Google Cloud Vertex AI
+```bash
+# Option 1: Service Account Key (in GitHub Secrets)
+GOOGLE_CLOUD_PROJECT=your-project-id
+GOOGLE_CLOUD_SERVICE_ACCOUNT_KEY=base64-encoded-json-key
+
+# Option 2: Workload Identity (recommended for GCP-hosted runners)
+GOOGLE_CLOUD_PROJECT=your-project-id
+# No key needed - uses workload identity
+```
+
+#### AWS Bedrock
+```bash
+# Option 1: Access Keys (in GitHub Secrets)
+AWS_ACCESS_KEY_ID=your-access-key
+AWS_SECRET_ACCESS_KEY=your-secret-key
+AWS_REGION=us-east-1
+
+# Option 2: IAM Roles (recommended for AWS-hosted runners)
+AWS_REGION=us-east-1
+# No keys needed - uses IAM roles
+```
 
 ## Installation & Setup
 
