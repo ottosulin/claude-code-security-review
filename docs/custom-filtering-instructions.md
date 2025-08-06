@@ -12,7 +12,7 @@ By default, the SAST action includes a comprehensive set of exclusions and crite
 2. Reference it in your workflow:
 
 ```yaml
-- uses: anthropics/claude-code-security-review@main
+- uses: ottosulin/claude-code-security-review@main
   with:
     false-positive-filtering-instructions: .github/false-positive-filtering.txt
 ```

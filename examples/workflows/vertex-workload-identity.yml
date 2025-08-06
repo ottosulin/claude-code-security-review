@@ -34,7 +34,7 @@ jobs:
           project_id: ${{ secrets.GOOGLE_CLOUD_PROJECT }}
       
       - name: Run Claude Code Security Review
-        uses: anthropics/claude-code-security-review@main
+        uses: ottosulin/claude-code-security-review@main
         with:
           # Provider selection
           llm-provider: vertex

@@ -34,7 +34,7 @@ jobs:
           aws-region: us-east-1
       
       - name: Run Claude Code Security Review
-        uses: anthropics/claude-code-security-review@main
+        uses: ottosulin/claude-code-security-review@main
         with:
           # Provider selection
           llm-provider: bedrock
